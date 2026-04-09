@@ -72,15 +72,18 @@ python -m examples.train --algo mappo_t --env gym --exp_name mappo_t_lbf_wandb \
 
 ## WandB multi-seed sweep templates
 
-Two DISSC-style sweep templates are provided:
+DISSC-style sweep templates are provided for both `mappo_t` and `happo`:
 
 - `examples/search.config.wandb.mappo_t_lbf.yaml`
 - `examples/search.config.wandb.mappo_t_vmas.yaml`
+- `examples/search.config.wandb.happo_lbf.yaml`
+- `examples/search.config.wandb.happo_vmas.yaml`
 
 Run:
 
 ```shell
 wandb sweep examples/search.config.wandb.mappo_t_lbf.yaml
+# or: wandb sweep examples/search.config.wandb.happo_lbf.yaml
 SWEEP_NUM_SEEDS=3 wandb agent <entity>/<project>/<sweep_id>
 ```
 
