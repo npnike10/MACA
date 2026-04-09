@@ -165,10 +165,10 @@ logger:
   # logging directory
   log_dir: "./results"
   # wandb args (set these for real WandB logging)
-  use_wandb: False
+  use_wandb: True
   # e.g. your W&B project slug
-  wandb_project: project-name
+  wandb_project: DeeperDiveIntoMACA
   # e.g. your W&B team/user
-  wandb_entity: entity-name
+  wandb_entity: niket-parikh-lira
   # online for cloud logging, offline for local-only files
-  wandb_mode: offline
+  wandb_mode: online

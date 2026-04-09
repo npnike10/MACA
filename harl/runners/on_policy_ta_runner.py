@@ -569,6 +569,13 @@ class OnPolicyTARunner(OnPolicyMARunner):
             if not exist_empty_model:
                 timesteps.append(int(name))
 
+        if not timesteps:
+            self.logger.console_logger.info(
+                f"No valid checkpoints found in {load_dir}. "
+                "Expected numeric timestep directories with non-empty model files."
+            )
+            return
+
         if timestep is None:
             # choose the max timestep
             timestep_to_load = max(timesteps)
