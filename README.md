@@ -16,7 +16,7 @@ cd HARL
 pip install -e .
 cd ..
 # now go to this MACA repo root
-# Install pytorch manually first (matching your CUDA/CPU setup)
+# HARL setup already installs torch>=1.9.0; only reinstall torch manually if you need a specific CUDA/CPU wheel.
 pip install sacred wandb
 pip install gym==0.26.2 gymnasium==1.1.1 lbforaging==2.0.0 "vmas[gymnasium]==1.4.3"
 ```
