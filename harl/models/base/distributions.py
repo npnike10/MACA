@@ -4,6 +4,36 @@ import torch.nn as nn
 from harl.utils.models_tools import init, get_init_method
 
 
+class FixedCategorical(torch.distributions.Categorical):
+    """Modify standard PyTorch Categorical."""
+
+    def sample(self):
+        return super().sample().unsqueeze(-1)
+
+    def log_probs(self, actions):
+        return (
+            super()
+            .log_prob(actions.squeeze(-1))
+            .unsqueeze(-1)
+        )
+
+    def mode(self):
+        return self.probs.argmax(dim=-1, keepdim=True)
+
+
+class FixedNormal(torch.distributions.Normal):
+    """Modify standard PyTorch Normal."""
+
+    def log_probs(self, actions):
+        return super().log_prob(actions)
+
+    def entropy(self):
+        return super().entropy().sum(-1)
+
+    def mode(self):
+        return self.mean
+
+
 class Categorical(nn.Module):
     """A linear layer followed by a Categorical distribution."""
 
