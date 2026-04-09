@@ -6,9 +6,16 @@ The repository for "Multi-level Advantage Credit Assignment for Cooperative Mult
 
 ## Quick setup (Python 3.8)
 
+Recommended: start from a HARL-ready environment, then install MACA extras.
+
 ```shell
 conda create -n harl python=3.8
 conda activate harl
+git clone git@github.com:npnike10/HARL.git
+cd HARL
+pip install -e .
+cd ..
+# now go to this MACA repo root
 # Install pytorch manually first (matching your CUDA/CPU setup)
 pip install sacred wandb
 pip install gym==0.26.2 gymnasium==1.1.1 lbforaging==2.0.0 "vmas[gymnasium]==1.4.3"
