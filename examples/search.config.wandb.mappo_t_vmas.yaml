@@ -47,8 +47,6 @@ parameters:
     values: [0.05, 0.2]
   algo.gae_lambda:
     values: [0.9, 0.95, 0.99]
-  train.use_valuenorm:
-    values: [True, False]
 
   # Kept for DISSC-style compatibility; ignored with explicit wrapper warning.
   save_model:
