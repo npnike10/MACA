@@ -135,10 +135,16 @@ class OnPolicyBaseRunner:
                 )
                 self.actor.append(agent)
 
-        self.init_train(sacred_run, console_logger)
+        self.logger = None
+        try:
+            self.init_train(sacred_run, console_logger)
 
-        if self.algo_args["train"]["model_dir"] is not None:  # restore model
-            self.restore()
+            if self.algo_args["train"]["model_dir"] is not None:  # restore model
+                self.restore()
+        except Exception:
+            if self.logger is not None:
+                self.logger.close(exit_code=1)
+            raise
 
     def init_train(self, sacred_run, console_logger):
         if self.algo_args["render"]["use_render"]:
@@ -178,6 +184,44 @@ class OnPolicyBaseRunner:
         self.logger = LOGGER_REGISTRY[self.args["env"]](
             self.args, self.algo_args, self.env_args, self.num_agents, sacred_run, console_logger,
         )
+
+    def _episode_step_count(self):
+        """Return the number of environment steps collected per training episode."""
+        return (
+            self.algo_args["train"]["episode_length"]
+            * self.algo_args["train"]["n_rollout_threads"]
+        )
+
+    def _curr_timestep(self, episode):
+        """Return t_env-style timestep after finishing the current episode."""
+        return (episode + 1) * self._episode_step_count()
+
+    def _is_step_interval_triggered(self, interval_key, curr_timestep):
+        """Check whether a step-based interval boundary was crossed this episode."""
+        interval_steps = self.algo_args["train"].get(interval_key)
+        if interval_steps is None:
+            return False
+        interval_steps = int(interval_steps)
+        if interval_steps <= 0:
+            return False
+        prev_timestep = max(0, curr_timestep - self._episode_step_count())
+        return curr_timestep // interval_steps > prev_timestep // interval_steps
+
+    def _should_log(self, episode, episodes, curr_timestep):
+        """Decide whether to run logging at this episode."""
+        if episode == episodes - 1:
+            return True
+        if self.algo_args["train"].get("log_interval_steps") is not None:
+            return self._is_step_interval_triggered("log_interval_steps", curr_timestep)
+        return episode % self.algo_args["train"]["log_interval"] == 0
+
+    def _should_eval(self, episode, episodes, curr_timestep):
+        """Decide whether to run evaluation at this episode."""
+        if episode == episodes - 1:
+            return True
+        if self.algo_args["train"].get("eval_interval_steps") is not None:
+            return self._is_step_interval_triggered("eval_interval_steps", curr_timestep)
+        return episode % self.algo_args["train"]["eval_interval"] == 0
 
     def run(self):
         """Run the training (or rendering) pipeline."""
@@ -261,25 +305,22 @@ class OnPolicyBaseRunner:
             self.prep_training()  # change to train mode
 
             actor_train_infos, critic_train_info = self.train()
+            curr_timestep = self._curr_timestep(episode)
 
             # log information
-            if (
-                episode % self.algo_args["train"]["log_interval"] == 0
-                or episode == episodes - 1
-            ):
+            if self._should_log(episode, episodes, curr_timestep):
                 self.logger.episode_log(
                     actor_train_infos,
                     critic_train_info,
                     self.actor_buffer,
                     self.critic_buffer,
+                    curr_timestep=curr_timestep,
                 )
 
             # eval
-            if (
-                episode % self.algo_args["train"]["eval_interval"] == 0
-                or episode == episodes - 1
-            ):
+            if self._should_eval(episode, episodes, curr_timestep):
                 if self.algo_args["eval"]["use_eval"]:
+                    self.logger.curr_timestep = curr_timestep
                     self.prep_rollout()
                     self.eval()
 
@@ -820,11 +861,15 @@ class OnPolicyBaseRunner:
                     torch.load(f"{str(load_path)}/value_normalizer.pt")
                 )
 
-    def close(self):
+    def close(self, exit_code=0):
         """Close environment."""
-        if self.algo_args["render"]["use_render"]:
-            self.envs.close()
-        else:
-            self.envs.close()
-            if self.algo_args["eval"]["use_eval"] and self.eval_envs is not self.envs:
-                self.eval_envs.close()
+        try:
+            if self.algo_args["render"]["use_render"]:
+                self.envs.close()
+            else:
+                self.envs.close()
+                if self.algo_args["eval"]["use_eval"] and self.eval_envs is not self.envs:
+                    self.eval_envs.close()
+        finally:
+            if self.logger is not None:
+                self.logger.close(exit_code=exit_code)

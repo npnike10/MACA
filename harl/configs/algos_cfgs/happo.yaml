@@ -22,6 +22,10 @@ train:
   log_interval: 5
   # evaluation interval
   eval_interval: 25
+  # optional env-step logging interval (takes precedence over log_interval when set)
+  log_interval_steps: ~
+  # optional env-step evaluation interval (takes precedence over eval_interval when set)
+  eval_interval_steps: ~
   # save interval
   save_interval: 250
   # whether to use ValueNorm

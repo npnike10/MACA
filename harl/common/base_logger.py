@@ -32,6 +32,10 @@ class BaseLogger:
         self.use_sacred = self.algo_args["logger"].get("use_sacred", True)
         self.use_wandb = self.algo_args["logger"].get("use_wandb", False)
         self.use_tb = self.algo_args["logger"].get("use_tb", False)
+        self.wandb_run = None
+        self._wandb_closed = False
+        self._wandb_current_t = None
+        self._wandb_current_data = {}
         if self.use_sacred:
             self.setup_sacred(sacred_run)
         if self.use_wandb:
@@ -71,7 +75,14 @@ class BaseLogger:
         self.eval_cumu_stats = defaultdict(lambda: 0)
         self.train_num_episode = 0
         self.train_num_episode_log = 0
-        self.last_eval_T = -self.algo_args["train"]["eval_interval"] - 1
+        eval_interval_steps = self.algo_args["train"].get("eval_interval_steps")
+        if eval_interval_steps is None:
+            eval_interval_steps = (
+                self.algo_args["train"]["eval_interval"]
+                * self.algo_args["train"]["episode_length"]
+                * self.algo_args["train"]["n_rollout_threads"]
+            )
+        self.last_eval_T = -int(eval_interval_steps) - 1
         self.start_time = time.time()
         self.last_time = self.start_time
 
@@ -294,14 +305,22 @@ class BaseLogger:
         self.tb_logger = log_value
 
     def setup_wandb(self):
-        import wandb
+        try:
+            import wandb
+        except ImportError as exc:
+            raise ImportError(
+                "WandB logging was enabled (`logger.use_wandb=True`) but the `wandb` "
+                "package is not installed. Install it with `pip install wandb` or disable "
+                "WandB with `--use_wandb False`."
+            ) from exc
+
         wandb_logs_dir = os.path.join(
             self.algo_args["logger"]["log_dir"], "wandb_logs",
             self.args["env"], self.task_name, self.args["algo"],
             self.args["exp_name"],
         )
         os.makedirs(wandb_logs_dir, exist_ok=True)
-        wandb.init(
+        self.wandb_run = wandb.init(
             project=self.algo_args["logger"]["wandb_project"],
             entity=self.algo_args["logger"]["wandb_entity"],
             dir=wandb_logs_dir,
@@ -312,7 +331,7 @@ class BaseLogger:
             },
             mode=self.algo_args["logger"]["wandb_mode"],
         )
-        wandb.run.name = (
+        self.wandb_run.name = (
             "_".join([
                 self.args["env"],
                 self.task_name,
@@ -321,7 +340,18 @@ class BaseLogger:
                 f'seed{self.algo_args["seed"]["seed"]}',
             ])
         )
-        self.wandb_logger = wandb.log
+
+    def _flush_wandb(self):
+        if (
+            not self.use_wandb
+            or self._wandb_closed
+            or self.wandb_run is None
+            or self._wandb_current_t is None
+            or not self._wandb_current_data
+        ):
+            return
+        self.wandb_run.log(self._wandb_current_data, step=self._wandb_current_t)
+        self._wandb_current_data = {}
 
     def setup_sacred(self, sacred_run_dict):
         self._run_obj = sacred_run_dict
@@ -334,8 +364,12 @@ class BaseLogger:
             self.tb_logger(key, value, t)
 
         if self.use_wandb:
-            self.wandb_logger({key: value,
-                               f"{key}_step": t})
+            if self._wandb_current_t is None:
+                self._wandb_current_t = t
+            elif t != self._wandb_current_t:
+                self._flush_wandb()
+                self._wandb_current_t = t
+            self._wandb_current_data[key] = value
 
         if self.use_sacred:
             if key in self.sacred_info:
@@ -362,6 +396,16 @@ class BaseLogger:
             log_str += "{:<25}{:>8}".format(k + ":", item)
             log_str += "\n" if i % 4 == 0 else "\t"
         self.console_logger.info(log_str)
+
+    def close(self, exit_code=0):
+        self._flush_wandb()
+        if (
+            self.use_wandb
+            and not self._wandb_closed
+            and self.wandb_run is not None
+        ):
+            self.wandb_run.finish(exit_code=exit_code)
+            self._wandb_closed = True
 
 
 INFO_IGNORE = {

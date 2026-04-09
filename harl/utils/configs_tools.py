@@ -34,17 +34,99 @@ def update_args(unparsed_dict, *args):
         unparsed_dict: (dict) Unparsed command-line arguments.
         *args: (list[dict]) argument dicts to be updated.
     """
+    target_names = ["algo_args", "env_args", "main_args"]
+    targets = []
+    for idx, args_dict in enumerate(args):
+        name = target_names[idx] if idx < len(target_names) else f"args_{idx}"
+        targets.append((name, args_dict))
 
-    def update_dict(dict1, dict2):
-        for k in dict2:
-            if type(dict2[k]) is dict:
-                update_dict(dict1, dict2[k])
+    def _walk_leaf_paths(cfg, prefix=()):
+        if not isinstance(cfg, dict):
+            return
+        for key, value in cfg.items():
+            path = prefix + (key,)
+            if isinstance(value, dict):
+                yield from _walk_leaf_paths(value, path)
             else:
-                if k in dict1:
-                    dict2[k] = dict1[k]
+                yield path
 
-    for args_dict in args:
-        update_dict(unparsed_dict, args_dict)
+    def _path_exists(cfg, path):
+        cursor = cfg
+        for key in path[:-1]:
+            if not isinstance(cursor, dict) or key not in cursor:
+                return False
+            cursor = cursor[key]
+        return isinstance(cursor, dict) and path[-1] in cursor
+
+    def _set_path(cfg, path, value):
+        cursor = cfg
+        for key in path[:-1]:
+            cursor = cursor[key]
+        cursor[path[-1]] = value
+
+    def _resolve_key(raw_key):
+        selected = targets
+        key = raw_key
+        explicit = False
+        for name, cfg in targets:
+            prefix = f"{name}."
+            if raw_key.startswith(prefix):
+                selected = [(name, cfg)]
+                key = raw_key[len(prefix):]
+                explicit = True
+                break
+
+        if not key:
+            return explicit, []
+
+        matches = []
+        if "." in key:
+            path = tuple(part for part in key.split(".") if part)
+            if not path:
+                return explicit, []
+            for name, cfg in selected:
+                if _path_exists(cfg, path):
+                    matches.append((name, path))
+        else:
+            for name, cfg in selected:
+                for path in _walk_leaf_paths(cfg):
+                    if path[-1] == key:
+                        matches.append((name, path))
+        return explicit, matches
+
+    unknown_keys = []
+    ambiguous_keys = {}
+
+    for raw_key, value in unparsed_dict.items():
+        explicit, matches = _resolve_key(raw_key)
+        if not matches:
+            unknown_keys.append(raw_key)
+            continue
+        if not explicit and len(matches) > 1:
+            ambiguous_keys[raw_key] = [
+                f"{name}.{'.'.join(path)}" for name, path in matches
+            ]
+            continue
+        for name, path in matches:
+            for target_name, target_cfg in targets:
+                if target_name == name:
+                    _set_path(target_cfg, path, value)
+                    break
+
+    if unknown_keys or ambiguous_keys:
+        errors = []
+        if unknown_keys:
+            errors.append(
+                "Unknown override keys: " + ", ".join(sorted(unknown_keys))
+            )
+        if ambiguous_keys:
+            for key in sorted(ambiguous_keys):
+                options = ", ".join(sorted(ambiguous_keys[key]))
+                errors.append(
+                    f"Ambiguous override '{key}', use a fully-qualified path. "
+                    f"Candidates: {options}"
+                )
+        raise ValueError("Invalid config overrides.\n" + "\n".join(errors))
 
 
 def get_task_name(env, env_args):
@@ -127,13 +209,24 @@ def save_config(args, algo_args, env_args, run_dir):
     return config_json
 
 
-def args_sanity_check(config, main_args, console_logger):
+def args_sanity_check(config, main_args, console_logger, env_args=None):
     # set CUDA flags. Use cuda whenever possible!
     if config["device"]["cuda"] and not th.cuda.is_available():
         config["device"]["cuda"] = False
         console_logger.warning(
             "CUDA flag cuda was switched OFF automatically because no CUDA devices are available!"
         )
+
+    # DISSCv2-aligned defaults for gym LBF/VMAS unless explicitly set.
+    if main_args.get("env") == "gym" and env_args is not None:
+        scenario = env_args.get("scenario", "")
+        if scenario.startswith("lbforaging:") or scenario.startswith("vmas-"):
+            if config["eval"].get("eval_episodes", 20) == 20:
+                config["eval"]["eval_episodes"] = 100
+            if "log_interval_steps" not in config["train"] or config["train"]["log_interval_steps"] is None:
+                config["train"]["log_interval_steps"] = 50000
+            if "eval_interval_steps" not in config["train"] or config["train"]["eval_interval_steps"] is None:
+                config["train"]["eval_interval_steps"] = 50000
 
     # set eval_episodes to be a multiple of n_eval_rollout_threads
     if config["eval"]["eval_episodes"] < config["eval"]["n_eval_rollout_threads"]:
@@ -150,6 +243,27 @@ def args_sanity_check(config, main_args, console_logger):
         config["train"]["eval_interval"] = (
             config["train"]["eval_interval"] // config["train"]["log_interval"]
         ) * config["train"]["log_interval"]
+
+    # step-based intervals (when set) take precedence in runners and are aligned here.
+    if config["train"].get("log_interval_steps", None) is not None:
+        config["train"]["log_interval_steps"] = int(config["train"]["log_interval_steps"])
+        if config["train"]["log_interval_steps"] <= 0:
+            raise ValueError("train.log_interval_steps must be positive.")
+    if config["train"].get("eval_interval_steps", None) is not None:
+        config["train"]["eval_interval_steps"] = int(config["train"]["eval_interval_steps"])
+        if config["train"]["eval_interval_steps"] <= 0:
+            raise ValueError("train.eval_interval_steps must be positive.")
+    if (
+        config["train"].get("log_interval_steps", None) is not None
+        and config["train"].get("eval_interval_steps", None) is not None
+    ):
+        if config["train"]["eval_interval_steps"] < config["train"]["log_interval_steps"]:
+            config["train"]["eval_interval_steps"] = config["train"]["log_interval_steps"]
+        else:
+            config["train"]["eval_interval_steps"] = (
+                config["train"]["eval_interval_steps"]
+                // config["train"]["log_interval_steps"]
+            ) * config["train"]["log_interval_steps"]
 
     # set save_interval to be 10*eval_interval if not specified
     if config["train"].get("save_interval", 0) == 0:

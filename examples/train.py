@@ -2,7 +2,6 @@
 import argparse
 import json
 import os
-from itertools import chain
 from sacred import Experiment, SETTINGS
 from sacred.observers import FileStorageObserver, MongoObserver
 from sacred.utils import apply_backspaces_and_linefeeds
@@ -34,12 +33,20 @@ def my_main(_run, _config, _log):
         _config["env_args"],
     )
 
-    # start training
-    runner = RUNNER_REGISTRY[args["algo"]](
-        args, algo_args, env_args, _run, _log,
-    )
-    runner.run()
-    runner.close()
+    runner = None
+    exit_code = 0
+    try:
+        # start training
+        runner = RUNNER_REGISTRY[args["algo"]](
+            args, algo_args, env_args, _run, _log,
+        )
+        runner.run()
+    except Exception:
+        exit_code = 1
+        raise
+    finally:
+        if runner is not None:
+            runner.close(exit_code=exit_code)
 
 def main():
     """Main function."""
@@ -91,13 +98,37 @@ def main():
     def process(arg):
         try:
             return eval(arg)
-        except:
+        except Exception:
             return arg
 
-    unparsed_args = list(chain(*[arg.split("=") for arg in unparsed_args]))
-    keys = [k.lstrip("-") for k in unparsed_args[0::2]]  # remove -- from argument
-    values = [process(v) for v in unparsed_args[1::2]]
-    unparsed_dict = {k: v for k, v in zip(keys, values)}
+    def parse_unparsed_args(raw_args):
+        parsed = {}
+        idx = 0
+        while idx < len(raw_args):
+            token = raw_args[idx]
+            if "=" in token:
+                key, raw_value = token.split("=", 1)
+                key = key.lstrip("-")
+                value = process(raw_value)
+                idx += 1
+            else:
+                if not token.startswith("-"):
+                    raise ValueError(
+                        f"Invalid override token '{token}'. "
+                        "Use '--key=value' or '--key value'."
+                    )
+                if idx + 1 >= len(raw_args):
+                    raise ValueError(f"Missing value for override '{token}'.")
+                key = token.lstrip("-")
+                value = process(raw_args[idx + 1])
+                idx += 2
+
+            if key in parsed:
+                raise ValueError(f"Duplicate override key '{key}'.")
+            parsed[key] = value
+        return parsed
+
+    unparsed_dict = parse_unparsed_args(unparsed_args)
     args = vars(args)  # convert to dict
     if args["load_config"] != "":  # load config from existing config file
         with open(args["load_config"], encoding="utf-8") as file:
@@ -108,7 +139,7 @@ def main():
         algo_args, env_args = get_defaults_yaml_args(args["algo"], args["env"])
     update_args(unparsed_dict, algo_args, env_args)  # update args from command line
 
-    args_sanity_check(algo_args, args, logger)
+    args_sanity_check(algo_args, args, logger, env_args=env_args)
     all_config = {
         "main_args": args,
         "algo_args": algo_args,

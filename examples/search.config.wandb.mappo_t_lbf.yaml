@@ -1,0 +1,53 @@
+program: examples/wandb_sweep_wrapper_multi_seed.py
+project: DeeperDiveIntoMACA
+method: random
+metric:
+  name: eval_episode_rewards_mean
+  goal: maximize
+
+parameters:
+  # MACA entrypoint selection
+  algo:
+    value: mappo_t
+  config:
+    value: mappo_lbf
+  env-config:
+    value: "gymma"
+
+  # Environment/task
+  env_args.time_limit:
+    value: 50
+  env_args.key:
+    value: "lbforaging:Foraging-15x15-3p-5f-v3"
+
+  # Run naming and budget
+  name:
+    value: mappo_t_lbf
+  t_max:
+    value: 2000000
+
+  # Tuned hyperparameters (DISSCv2-role-aligned mappings)
+  hidden_dim:
+    values: [64, 128]
+  lr:
+    distribution: uniform
+    max: 0.001
+    min: 0.0001
+  use_rnn:
+    values: [True, False]
+  entropy_coef:
+    distribution: uniform
+    max: 0.01
+    min: 0.001
+  epochs:
+    values: [4, 8]
+  eps_clip:
+    values: [0.05, 0.2]
+
+  # Kept for DISSC-style compatibility; ignored with explicit wrapper warning.
+  save_model:
+    value: False
+
+# Note:
+# - DISSC keys {standardise_rewards, q_nstep, target_update_interval_or_tau}
+#   are intentionally omitted because they do not have MACA on-policy equivalents.

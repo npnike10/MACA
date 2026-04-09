@@ -191,25 +191,22 @@ class OnPolicyTARunner(OnPolicyMARunner):
             self.prep_training()  # change to train mode
 
             actor_train_infos, critic_train_info = self.train()
+            curr_timestep = self._curr_timestep(episode)
 
             # log information
-            if (
-                episode % self.algo_args["train"]["log_interval"] == 0
-                or episode == episodes - 1
-            ):
+            if self._should_log(episode, episodes, curr_timestep):
                 self.logger.episode_log(
                     actor_train_infos,
                     critic_train_info,
                     self.actor_buffer,
                     self.critic_buffer,
+                    curr_timestep=curr_timestep,
                 )
 
             # eval
-            if (
-                episode % self.algo_args["train"]["eval_interval"] == 0
-                or episode == episodes - 1
-            ):
+            if self._should_eval(episode, episodes, curr_timestep):
                 if self.algo_args["eval"]["use_eval"]:
+                    self.logger.curr_timestep = curr_timestep
                     self.prep_rollout()
                     self.eval()
 
