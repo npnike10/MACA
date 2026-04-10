@@ -320,7 +320,15 @@ class BaseLogger:
             self.args["exp_name"],
         )
         os.makedirs(wandb_logs_dir, exist_ok=True)
-        self.wandb_run = wandb.init(
+        default_name = "_".join([
+            self.args["env"],
+            self.task_name,
+            self.args["algo"],
+            self.args["exp_name"],
+            f'seed{self.algo_args["seed"]["seed"]}',
+        ])
+        shared_name = os.environ.get("WANDB_NAME")
+        init_kwargs = dict(
             project=self.algo_args["logger"]["wandb_project"],
             entity=self.algo_args["logger"]["wandb_entity"],
             dir=wandb_logs_dir,
@@ -331,15 +339,12 @@ class BaseLogger:
             },
             mode=self.algo_args["logger"]["wandb_mode"],
         )
-        self.wandb_run.name = (
-            "_".join([
-                self.args["env"],
-                self.task_name,
-                self.args["algo"],
-                self.args["exp_name"],
-                f'seed{self.algo_args["seed"]["seed"]}',
-            ])
-        )
+        if shared_name:
+            init_kwargs["name"] = shared_name
+            init_kwargs["group"] = shared_name
+        else:
+            init_kwargs["name"] = default_name
+        self.wandb_run = wandb.init(**init_kwargs)
 
     def _flush_wandb(self):
         if (

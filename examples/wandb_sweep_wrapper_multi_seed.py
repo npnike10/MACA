@@ -350,7 +350,7 @@ def main():
     seeds = [random.randint(0, MAX_MACA_BASE_SEED) for _ in range(num_seeds)]
 
     hparam_tag = uuid.uuid4().hex[:6]
-    run_name = f"{meta['exp_name']}_{hparam_tag}"
+    run_name = f"sweep_{hparam_tag}"
 
     wrapper_wandb_mode = os.environ.get("SWEEP_WRAPPER_WANDB_MODE", "online")
     sweep_run = wandb.init(
