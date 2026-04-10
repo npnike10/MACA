@@ -179,10 +179,36 @@ def translate_params(raw_params):
     if "t_max" in params:
         overrides["num_env_steps"] = int(params.pop("t_max"))
 
+    mappo_t_recurrent_enabled = False
+    if meta["algo"] == "mappo_t":
+        recurrent_flags = []
+        if "use_rnn" in params:
+            recurrent_flags.append(_coerce_bool(params["use_rnn"], "use_rnn"))
+        if "model.use_recurrent_policy" in params:
+            recurrent_flags.append(
+                _coerce_bool(
+                    params["model.use_recurrent_policy"],
+                    "model.use_recurrent_policy",
+                )
+            )
+        if "model.use_naive_recurrent_policy" in params:
+            recurrent_flags.append(
+                _coerce_bool(
+                    params["model.use_naive_recurrent_policy"],
+                    "model.use_naive_recurrent_policy",
+                )
+            )
+        mappo_t_recurrent_enabled = any(recurrent_flags)
+
     # Hyperparameter mappings for mappo_lbf-style parity
     if "hidden_dim" in params:
         dim = int(params.pop("hidden_dim"))
         overrides["model.hidden_sizes"] = [dim, dim]
+        if meta["algo"] == "mappo_t" and mappo_t_recurrent_enabled:
+            params.pop("model.transformer.n_embd", None)
+            # Keep transformer embedding size aligned with hidden_dim so recurrent
+            # mappo_t runs do not hit GRU input-size mismatches.
+            overrides["model.transformer.n_embd"] = dim
     if "lr" in params:
         lr = float(params.pop("lr"))
         overrides["model.lr"] = lr
