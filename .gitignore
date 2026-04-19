@@ -2,6 +2,7 @@
 **/results/**
 .VSCodeCounter/
 wandb/
+train_sbatch_outputs/
 
 ##### Python.gitignore #####
 # Byte-compiled / optimized / DLL files

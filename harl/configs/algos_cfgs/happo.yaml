@@ -15,7 +15,7 @@ train:
   # number of parallel environments for training data collection
   n_rollout_threads: 10
   # number of total training steps
-  num_env_steps: 10000000
+  num_env_steps: 20050000
   # number of steps per environment per training data collection
   episode_length: 200
   # logging interval
@@ -25,7 +25,7 @@ train:
   # optional env-step logging interval (takes precedence over log_interval when set)
   log_interval_steps: ~
   # optional env-step evaluation interval (takes precedence over eval_interval when set)
-  eval_interval_steps: ~
+  eval_interval_steps: 2000
   # save interval
   save_interval: 250
   # whether to use ValueNorm
@@ -51,7 +51,7 @@ render:
 model:
   # network parameters
   # hidden sizes for mlp module in the network
-  hidden_sizes: [128, 128]
+  hidden_sizes: [64, 64]
   # hidden size multiplier for critic network
   critic_hidden_x: 1
   # activation function, choose from sigmoid, tanh, relu, leaky_relu, selu
@@ -66,16 +66,16 @@ model:
   # whether to use rnn policy (data is not chunked for training)
   use_naive_recurrent_policy: False
   # whether to use rnn policy (data is chunked for training)
-  use_recurrent_policy: False
+  use_recurrent_policy: True
   # number of recurrent layers
   recurrent_n: 1
   # length of data chunk; only useful when use_recurrent_policy is True; episode_length has to be a multiple of data_chunk_length
   data_chunk_length: 10
   # optimizer parameters
   # actor learning rate
-  lr: 0.0005
+  lr: 0.00014
   # critic learning rate
-  critic_lr: 0.0005
+  critic_lr: 0.00014
   # eps in Adam
   opti_eps: 0.00001
   # weight_decay in Adam
@@ -87,9 +87,9 @@ model:
 algo:
   # ppo parameters
   # number of epochs for actor update
-  ppo_epoch: 5
+  ppo_epoch: 8
   # number of epochs for critic update
-  critic_epoch: 5
+  critic_epoch: 8
   # whether to use clipped value loss
   use_clipped_value_loss: True
   # clip parameter
@@ -99,7 +99,7 @@ algo:
   # number of mini-batches per epoch for critic update
   critic_num_mini_batch: 1
   # coefficient for entropy term in actor loss
-  entropy_coef: 0.01
+  entropy_coef: 0.0055
   # coefficient for value loss
   value_loss_coef: 1
   # whether to clip gradient norm
@@ -111,7 +111,7 @@ algo:
   # discount factor
   gamma: 0.99
   # GAE lambda
-  gae_lambda: 0.95
+  gae_lambda: 0.9
   # whether to use huber loss
   use_huber_loss: True
   # whether to use policy active masks

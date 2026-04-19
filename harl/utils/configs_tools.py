@@ -265,6 +265,34 @@ def args_sanity_check(config, main_args, console_logger, env_args=None):
                 // config["train"]["log_interval_steps"]
             ) * config["train"]["log_interval_steps"]
 
+    # mappo_t uses a transformer critic with optional recurrent state, which requires
+    # embedding width and recurrent hidden width to match.
+    if main_args.get("algo") == "mappo_t":
+        model_cfg = config.get("model", {})
+        use_recurrent = bool(
+            model_cfg.get("use_recurrent_policy", False)
+            or model_cfg.get("use_naive_recurrent_policy", False)
+        )
+        if use_recurrent:
+            hidden_sizes = model_cfg.get("hidden_sizes", None)
+            transformer_cfg = model_cfg.get("transformer", {})
+            if not hidden_sizes:
+                raise ValueError(
+                    "mappo_t requires model.hidden_sizes to be set when recurrent policy is enabled."
+                )
+            if "n_embd" not in transformer_cfg:
+                raise ValueError(
+                    "mappo_t requires model.transformer.n_embd when recurrent policy is enabled."
+                )
+            rnn_hidden_size = int(hidden_sizes[-1])
+            n_embd = int(transformer_cfg["n_embd"])
+            if n_embd != rnn_hidden_size:
+                raise ValueError(
+                    "Invalid mappo_t config: model.transformer.n_embd "
+                    f"({n_embd}) must match model.hidden_sizes[-1] ({rnn_hidden_size}) "
+                    "when recurrent policy is enabled."
+                )
+
     # set save_interval to be 10*eval_interval if not specified
     if config["train"].get("save_interval", 0) == 0:
         config["train"]["save_interval"] = 10 * config["train"]["eval_interval"]
