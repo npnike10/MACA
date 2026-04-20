@@ -10,7 +10,7 @@ parameters:
   algo:
     value: mappo_t
   config:
-    value: mappo_lbf
+    value: mappo_t_lbf
   env-config:
     value: "gymma"
 
@@ -24,7 +24,7 @@ parameters:
   name:
     value: mappo_t_lbf
   t_max:
-    value: 500000
+    value: 2000000
 
   # Tuned hyperparameters (DISSCv2-role-aligned mappings)
   hidden_dim:
