@@ -106,7 +106,7 @@ class TransVCritic(VCritic):
         )
 
     # TODO may implement gradient_accumulation_steps as per nanoGPT
-    def update(self, sample, value_normalizer=dict()):
+    def update(self, sample, value_normalizer=None):
         """Update critic network.
         Args:
             sample: (Tuple) contains data batch with which to update networks.
@@ -137,6 +137,8 @@ class TransVCritic(VCritic):
             rewards_batch,
         ) = sample
 
+        normalizers = value_normalizer if isinstance(value_normalizer, dict) else {}
+
         value_preds_batch = check(value_preds_batch).to(**self.tpdv)
         q_value_preds_batch = check(q_value_preds_batch).to(**self.tpdv)
         eq_value_preds_batch = check(eq_value_preds_batch).to(**self.tpdv)
@@ -151,17 +153,26 @@ class TransVCritic(VCritic):
         value_loss = torch.tensor(0.0, device=self.device)
         if self.value_loss_coef > 0:
             value_loss = self.cal_value_loss(
-                values, value_preds_batch, return_batch, value_normalizer=value_normalizer["v"]
+                values,
+                value_preds_batch,
+                return_batch,
+                value_normalizer=normalizers.get("v"),
             )
         q_value_loss = torch.tensor(0.0, device=self.device)
         if self.q_value_loss_coef > 0:
             q_value_loss = self.cal_value_loss(
-                q_values, q_value_preds_batch, q_return_batch, value_normalizer=value_normalizer["q"]
+                q_values,
+                q_value_preds_batch,
+                q_return_batch,
+                value_normalizer=normalizers.get("q"),
             )
         eq_value_loss = torch.tensor(0.0, device=self.device)
         if self.eq_value_loss_coef > 0:
             eq_value_loss = self.cal_value_loss(
-                eq_values, eq_value_preds_batch, eq_return_batch, value_normalizer=value_normalizer["eq"]
+                eq_values,
+                eq_value_preds_batch,
+                eq_return_batch,
+                value_normalizer=normalizers.get("eq"),
             )
 
         self.critic_optimizer.zero_grad()
@@ -195,7 +206,7 @@ class TransVCritic(VCritic):
 
         return value_loss, q_value_loss, eq_value_loss, next_s_pred_loss, critic_grad_norm
 
-    def train(self, critic_buffer, value_normalizer=dict()):
+    def train(self, critic_buffer, value_normalizer=None):
         """Perform a training update using minibatch GD.
         Args:
             critic_buffer: (OnPolicyCriticBufferEP or OnPolicyCriticBufferFP) buffer containing training data related to critic.

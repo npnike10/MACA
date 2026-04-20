@@ -63,10 +63,11 @@ class GYMEnv:
             self.discrete = True
         if self.lbforaging or self.vmas or self.rware:
             self.observation_space = self._space_to_list(self.env.observation_space)
-            self.share_observation_space = self.observation_space
             self.action_space = self._space_to_list(self.env.action_space)
             self.n_agents = len(self.observation_space)
             self.discrete = True
+            global_obs_space = self._build_global_obs_space(self.observation_space)
+            self.share_observation_space = [global_obs_space for _ in range(self.n_agents)]
 
     @staticmethod
     def _is_lbforaging_scenario(scenario):
@@ -97,6 +98,45 @@ class GYMEnv:
         return [space]
 
     @staticmethod
+    def _space_flat_dim(space):
+        if hasattr(space, "shape") and space.shape is not None:
+            return int(np.prod(space.shape))
+        if hasattr(space, "n"):
+            return int(space.n)
+        raise ValueError(f"Unsupported observation space for flattening: {space}")
+
+    @classmethod
+    def _build_global_obs_space(cls, obs_spaces):
+        first = obs_spaces[0]
+        # Prefer preserving exact box bounds when available.
+        if all(hasattr(space, "low") and hasattr(space, "high") for space in obs_spaces):
+            low = np.concatenate(
+                [np.asarray(space.low, dtype=np.float32).reshape(-1) for space in obs_spaces],
+                axis=0,
+            )
+            high = np.concatenate(
+                [np.asarray(space.high, dtype=np.float32).reshape(-1) for space in obs_spaces],
+                axis=0,
+            )
+            box_cls = first.__class__
+            return box_cls(low=low, high=high, dtype=np.float32)
+
+        dim = sum(cls._space_flat_dim(space) for space in obs_spaces)
+        return gym.spaces.Box(
+            low=-np.inf,
+            high=np.inf,
+            shape=(dim,),
+            dtype=np.float32,
+        )
+
+    def _build_share_obs(self, local_obs):
+        global_state = np.concatenate(
+            [np.asarray(agent_obs, dtype=np.float32).reshape(-1) for agent_obs in local_obs],
+            axis=0,
+        )
+        return np.repeat(global_state[None, :], self.n_agents, axis=0)
+
+    @staticmethod
     def _reset_unpack(reset_output):
         if isinstance(reset_output, tuple) and len(reset_output) == 2:
             return reset_output[0]
@@ -124,7 +164,9 @@ class GYMEnv:
             if not isinstance(done, Iterable):
                 done = [done] * self.n_agents
             rew = [[float(np.sum(rew))]] * self.n_agents
-            return obs, obs, rew, done, [info], self.get_avail_actions()
+            local_obs = np.asarray(obs, dtype=np.float32)
+            share_obs = self._build_share_obs(local_obs)
+            return local_obs, share_obs, rew, done, [info], self.get_avail_actions()
 
         if self.discrete:
             step_out = self.env.step(actions.flatten()[0])
@@ -147,7 +189,9 @@ class GYMEnv:
         obs = [self._reset_unpack(reset_out)]
         s_obs = copy.deepcopy(obs)
         if self.lbforaging or self.vmas or self.rware:
-            return obs[0], s_obs[0], self.get_avail_actions()
+            local_obs = np.asarray(obs[0], dtype=np.float32)
+            share_obs = self._build_share_obs(local_obs)
+            return local_obs, share_obs, self.get_avail_actions()
         return obs, s_obs, self.get_avail_actions()
 
     def get_avail_actions(self):
