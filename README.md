@@ -18,7 +18,7 @@ cd ..
 # now go to this MACA repo root
 # HARL setup already installs torch>=1.9.0; only reinstall torch manually if you need a specific CUDA/CPU wheel.
 pip install sacred wandb
-pip install gym==0.26.2 gymnasium==1.1.1 lbforaging==2.0.0 "vmas[gymnasium]==1.4.3"
+pip install gym==0.26.2 gymnasium==1.1.1 lbforaging==2.0.0 rware==2.0.0 "vmas[gymnasium]==1.4.3"
 ```
 
 For Python 3.8, VMAS import compatibility is handled in `harl/envs/gym/vmas_wrapper.py` (no VMAS env logic is changed).
@@ -38,13 +38,23 @@ python -m examples.train --algo mappo_t --env gym --exp_name mappo_t_vmas \
   --scenario vmas-balance --n_agents 5 --n_rollout_threads 1 \
   --n_eval_rollout_threads 1 --num_env_steps 200 --episode_length 50 --cuda False
 
+# MAPPO_T on RWARE
+python -m examples.train --algo mappo_t --env gym --exp_name mappo_t_rware \
+  --scenario rware:rware-tiny-4ag-v2 --n_rollout_threads 1 \
+  --n_eval_rollout_threads 1 --num_env_steps 200 --episode_length 500 --cuda False
+
 # HAPPO on LBF v3
 python -m examples.train --algo happo --env gym --exp_name happo_lbf \
   --scenario lbforaging:Foraging-8x8-2p-1f-v3 --n_rollout_threads 1 \
   --n_eval_rollout_threads 1 --num_env_steps 200 --episode_length 50 --cuda False
+
+# HAPPO on RWARE
+python -m examples.train --algo happo --env gym --exp_name happo_rware \
+  --scenario rware:rware-tiny-4ag-v2 --n_rollout_threads 1 \
+  --n_eval_rollout_threads 1 --num_env_steps 200 --episode_length 500 --cuda False
 ```
 
-For `gym` scenarios starting with `lbforaging:` or `vmas-`, MACA now applies DISSCv2-aligned evaluation/logging defaults unless you override them:
+For `gym` scenarios starting with `lbforaging:`, `vmas-`, or `rware:`, MACA now applies DISSCv2-aligned evaluation/logging defaults unless you override them:
 `eval_episodes=100`, `log_interval_steps=50000`, `eval_interval_steps=50000`.
 
 ## WandB for training runs (`mappo_t`)

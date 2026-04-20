@@ -16,6 +16,7 @@ class GYMEnv:
         self.scenario = self.args.pop("scenario")
         self.lbforaging = self._is_lbforaging_scenario(self.scenario)
         self.vmas = self._is_vmas_scenario(self.scenario)
+        self.rware = self._is_rware_scenario(self.scenario)
         if self.lbforaging:
             self.args.pop("n_agents", None)
             register_custom_lbforaging_envs()
@@ -36,6 +37,19 @@ class GYMEnv:
             self.env = VMASWrapper(
                 env_name=self._parse_vmas_env_name(self.scenario), **self.args
             )
+        elif self.rware:
+            self.args.pop("n_agents", None)
+            if gymnasium is None:
+                raise ImportError(
+                    "gymnasium is required for RWARE scenarios. Install gymnasium and rware."
+                )
+            try:
+                import rware  # noqa: F401
+            except ImportError as exc:
+                raise ImportError(
+                    "rware is required for RWARE scenarios. Install with: pip install rware"
+                ) from exc
+            self.env = gymnasium.make(self.scenario, **self.args)
         else:
             self.args.pop("n_agents", None)
             self.env = gym.make(self.scenario, **self.args)
@@ -47,7 +61,7 @@ class GYMEnv:
             self.discrete = False
         else:
             self.discrete = True
-        if self.lbforaging or self.vmas:
+        if self.lbforaging or self.vmas or self.rware:
             self.observation_space = self._space_to_list(self.env.observation_space)
             self.share_observation_space = self.observation_space
             self.action_space = self._space_to_list(self.env.action_space)
@@ -61,6 +75,10 @@ class GYMEnv:
     @staticmethod
     def _is_vmas_scenario(scenario):
         return scenario.startswith("vmas-") or scenario.startswith("vmas:")
+
+    @staticmethod
+    def _is_rware_scenario(scenario):
+        return scenario.startswith("rware:") or scenario.startswith("rware-")
 
     @staticmethod
     def _parse_vmas_env_name(scenario):
@@ -88,7 +106,7 @@ class GYMEnv:
         """
         return local_obs, global_state, rewards, dones, infos, available_actions
         """
-        if self.lbforaging or self.vmas:
+        if self.lbforaging or self.vmas or self.rware:
             step_out = self.env.step([int(a) for a in actions.flatten()])
             if self.vmas:
                 obs, rew, done, truncated, info = step_out
@@ -128,12 +146,12 @@ class GYMEnv:
         reset_out = self.env.reset()
         obs = [self._reset_unpack(reset_out)]
         s_obs = copy.deepcopy(obs)
-        if self.lbforaging or self.vmas:
+        if self.lbforaging or self.vmas or self.rware:
             return obs[0], s_obs[0], self.get_avail_actions()
         return obs, s_obs, self.get_avail_actions()
 
     def get_avail_actions(self):
-        if self.lbforaging or self.vmas:
+        if self.lbforaging or self.vmas or self.rware:
             return [
                 [1] * self.action_space[agent_id].n for agent_id in range(self.n_agents)
             ]

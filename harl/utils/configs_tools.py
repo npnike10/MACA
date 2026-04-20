@@ -220,7 +220,12 @@ def args_sanity_check(config, main_args, console_logger, env_args=None):
     # DISSCv2-aligned defaults for gym LBF/VMAS unless explicitly set.
     if main_args.get("env") == "gym" and env_args is not None:
         scenario = env_args.get("scenario", "")
-        if scenario.startswith("lbforaging:") or scenario.startswith("vmas-"):
+        if (
+            scenario.startswith("lbforaging:")
+            or scenario.startswith("vmas-")
+            or scenario.startswith("rware:")
+            or scenario.startswith("rware-")
+        ):
             if config["eval"].get("eval_episodes", 20) == 20:
                 config["eval"]["eval_episodes"] = 100
             if "log_interval_steps" not in config["train"] or config["train"]["log_interval_steps"] is None:
