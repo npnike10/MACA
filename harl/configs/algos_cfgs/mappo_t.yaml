@@ -15,7 +15,7 @@ train:
   # number of parallel environments for training data collection
   n_rollout_threads: 10
   # number of total training steps
-  num_env_steps: 20050000
+  num_env_steps: 40050000
   # number of steps per environment per training data collection
   episode_length: 200
   # logging interval
@@ -124,13 +124,13 @@ model:
 algo:
   # ppo parameters
   # number of epochs for actor update
-  ppo_epoch: 4
+  ppo_epoch: 10
   # number of epochs for critic update
-  critic_epoch: 4
+  critic_epoch: 10
   # whether to use clipped value loss
   use_clipped_value_loss: True
   # clip parameter
-  clip_param: 0.2
+  clip_param: 0.1
   # number of mini-batches per epoch for actor update
   actor_num_mini_batch: 1
   # number of mini-batches per epoch for critic update
