@@ -27,7 +27,7 @@ train:
   # optional env-step evaluation interval (takes precedence over eval_interval when set)
   eval_interval_steps: 2000
   # save interval
-  save_interval: 25000
+  save_interval: 2500000
   # whether to use ValueNorm
   use_valuenorm: True
   # whether to use linear learning rate decay
